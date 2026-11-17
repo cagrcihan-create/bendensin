@@ -105,7 +105,7 @@ ol.adimlar{margin:0;padding-left:20px;font-size:14px;display:flex;flex-direction
 const SUPA_URL = 'https://oeapprlxcipkjbfoilcm.supabase.co';
 const SUPA_KEY = 'sb_publishable_ol7ux6gb9ajfh7ux-_G_Tg_p_LfsAC9';
 const KOD_UCRETI = 10;
-const SURUM = '2026-11-17-6'; // Her yüklemede artır: açık uygulamalar yeni sürümü buna bakarak fark eder.
+const SURUM = '2026-11-17-7'; // Her yüklemede artır: açık uygulamalar yeni sürümü buna bakarak fark eder.
 const YARICAP = Infinity; // Şimdilik mesafe sınırı yok. Geri açmak için metre yaz (örn. 1500) ve veritabanındaki private.menzil_m() ile aynı yap.
 const SINIR_VAR = isFinite(YARICAP);
 const KAPSAMLAR = ['Yemek', 'İçecek', 'Tatlı', 'Yemek + içecek', 'Tüm menü'];
@@ -681,11 +681,12 @@ function gecmisCiz(teklifler, kodlar) {
   let secilen = 0, gelen = 0, gelenKisi = 0;
   const satirlar = bugun.map((f) => {
     const k = kodBul[f.id], t = f.talep || {};
-    let durum, renk = 'soluk';
+    let durum, renk = 'soluk', dugme = '';
     if (f.durum === 'secildi') {
       secilen++;
       if (k && k.durum === 'kullanildi') { gelen++; gelenKisi += Number(t.kisi) || 0; durum = 'Geldi, kod onaylandı' + (k.kullanildi_at ? ' · ' + saatYaz(k.kullanildi_at) : ''); renk = 'yesil-yazi'; }
-      else if (k && k.durum === 'aktif' && new Date(k.bitis).getTime() > Date.now()) { durum = 'Müşteri seçti, gelmesi bekleniyor · ' + kalanDk(k.bitis) + ' dk'; renk = 'yesil-yazi'; }
+      else if (k && k.durum === 'aktif' && new Date(k.bitis).getTime() > Date.now()) { durum = 'Müşteri seçti, gelmesi bekleniyor · ' + kalanDk(k.bitis) + ' dk'; renk = 'yesil-yazi';
+        dugme = '<button type="button" class="btn yesil dar" data-a="kod-odak">Müşteri geldi, kodunu gir</button>'; }
       else { durum = 'Müşteri seçti ama gelmedi, kodun süresi doldu'; }
     } else if (f.durum === 'reddedildi') { durum = 'Müşteri başka bir teklifi seçti'; }
     else if (t.durum === 'acik' && new Date(t.bitis).getTime() > Date.now()) { durum = 'Müşterinin seçmesi bekleniyor'; }
@@ -693,7 +694,7 @@ function gecmisCiz(teklifler, kodlar) {
     const tur = f.tur === 'karsi' ? 'Karşı teklif' : f.tur === 'otomatik' ? 'Otomatik kabul' : 'Kabul';
     return '<div class="kart sutun" style="gap:4px"><div class="satir arasi"><div class="sutun" style="gap:2px"><span style="font-weight:600">' + esc((t.kisi ? t.kisi + ' kişi · ' : '') + f.kapsam) + '</span>' +
       '<span class="soluk kucuk">' + esc(tur + ' · ' + saatYaz(f.created_at)) + '</span></div><span class="oran-yazi">%' + Number(f.oran) + '</span></div>' +
-      '<p class="' + renk + '" style="font-size:14px;font-weight:600">' + esc(durum) + '</p></div>';
+      '<p class="' + renk + '" style="font-size:14px;font-weight:600">' + esc(durum) + '</p>' + dugme + '</div>';
   });
   ozet.textContent = bugun.length
     ? bugun.length + ' teklif verdin · ' + secilen + ' müşteri seçti · ' + gelen + ' masa geldi' + (gelenKisi ? ' (' + gelenKisi + ' kişi)' : '') + '.'
@@ -867,6 +868,7 @@ const ISLEM = {
     git('teklifler');
   },
   'talep-geri': () => git('talep'),
+  'kod-odak': () => { const g = $('#kod-giris'); if (g) { g.scrollIntoView({ block: 'center' }); g.focus(); } },
   'talep-iptal': async () => { if (S.talep) await q(db.rpc('talep_iptal', { p_talep: S.talep.id })); S.talep = null; S.teklifler = []; git('talep'); },
   'menu-ac': (el) => { S.menuTeklif = S.teklifler.find((x) => x.id === el.dataset.v); if (S.menuTeklif) git('menu'); },
   'teklif-sec': async (el) => { await q(db.rpc('teklif_sec', { p_teklif: el.dataset.v })); S.talep = null; S.teklifler = []; git('kod'); },
