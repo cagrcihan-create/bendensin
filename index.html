@@ -105,7 +105,7 @@ ol.adimlar{margin:0;padding-left:20px;font-size:14px;display:flex;flex-direction
 const SUPA_URL = 'https://oeapprlxcipkjbfoilcm.supabase.co';
 const SUPA_KEY = 'sb_publishable_ol7ux6gb9ajfh7ux-_G_Tg_p_LfsAC9';
 const KOD_UCRETI = 10;
-const SURUM = '2026-11-17-9'; // Her yüklemede artır: açık uygulamalar yeni sürümü buna bakarak fark eder.
+const SURUM = '2026-11-17-10'; // Her yüklemede artır: açık uygulamalar yeni sürümü buna bakarak fark eder.
 const YARICAP = Infinity; // Şimdilik mesafe sınırı yok. Geri açmak için metre yaz (örn. 1500) ve veritabanındaki private.menzil_m() ile aynı yap.
 const SINIR_VAR = isFinite(YARICAP);
 const KAPSAMLAR = ['Yemek', 'İçecek', 'Tatlı', 'Yemek + içecek', 'Tüm menü'];
@@ -143,6 +143,8 @@ function mesafeYazi(m) {
   return (m < 1000 ? Math.round(m / 10) * 10 + ' m' : (m / 1000).toFixed(1).replace('.', ',') + ' km') + ' · ' + dk + ' dk yürüme';
 }
 function uzaklikYaz(m) { return m >= 1000 ? (m / 1000).toFixed(1).replace('.', ',') + ' km' : Math.round(m / 10) * 10 + ' m'; }
+const AYLAR = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
+function gunYaz(ts) { const d = new Date(ts); return d.getDate() + ' ' + AYLAR[d.getMonth()]; }
 function saatYaz(ts) { const d = new Date(ts); return String(d.getHours()).padStart(2, '0') + '.' + String(d.getMinutes()).padStart(2, '0'); }
 function kalanDk(ts) { return Math.max(0, Math.ceil((new Date(ts).getTime() - Date.now()) / 60000)); }
 
@@ -644,7 +646,8 @@ SEKME.talepler = function () {
     '<div class="sutun" style="gap:4px"><h3>' + (SINIR_VAR ? 'Yakındaki talepler' : 'Açık talepler') + '</h3><p class="soluk kucuk">' + (SINIR_VAR ? '1,5 km çevrendeki açık talepler. ' : '') + 'Liste kendiliğinden yenilenir.</p></div>' +
     '<div id="talep-liste" class="sutun"><p class="soluk">Yükleniyor…</p></div>' +
     '<div class="sutun" style="gap:4px"><h3>Gelmesi beklenen müşteriler</h3><p id="gecmis-ozet" class="soluk kucuk"></p></div>' +
-    '<div id="gecmis-liste" class="sutun"></div>';
+    '<div id="gecmis-liste" class="sutun"></div>' +
+    '<button type="button" class="btn dar" data-a="sekme" data-v="hesap">Gelen müşterileri gör</button>';
   $('#kod-form').addEventListener('submit', (e) => { e.preventDefault(); calistir(kodOnayla, e.submitter); });
   S.talepImza = null;
   tekrarla(async (gecerli) => {
@@ -799,7 +802,7 @@ SEKME.hesap = async function () {
       '<button type="button" class="btn tam" data-a="cikis">Çıkış yap</button></div>' +
     '<div id="hesap-veri" class="sutun" style="gap:14px"><p class="soluk">Yükleniyor…</p></div>';
   const d = new Date(), ayBasi = new Date(d.getFullYear(), d.getMonth(), 1).toISOString();
-  const kodlar = await q(db.from('kodlar').select('id,durum,kullanildi_at,puan').eq('kafe_id', S.kafe.id).eq('durum', 'kullanildi').gte('kullanildi_at', ayBasi));
+  const kodlar = await q(db.from('kodlar').select('id,durum,kullanildi_at,puan,teklif:teklifler(kapsam,oran),talep:talepler(kisi)').eq('kafe_id', S.kafe.id).eq('durum', 'kullanildi').gte('kullanildi_at', ayBasi).order('kullanildi_at', { ascending: false }));
   if (S.view !== 'panel' || S.sekme !== 'hesap' || !$('#hesap-veri')) return;
   const puanlar = kodlar.filter((k) => k.puan).map((k) => k.puan);
   const ort = puanlar.length ? (puanlar.reduce((a, b) => a + b, 0) / puanlar.length).toFixed(1).replace('.', ',') : null;
@@ -808,6 +811,15 @@ SEKME.hesap = async function () {
       '<span style="font-family:var(--baslik);font-weight:700;font-size:26px;line-height:1.1">' + kodlar.length + ' kod kullanıldı</span>' +
       '<span style="font-size:14px">Tutar: ' + kodlar.length + ' × ' + KOD_UCRETI + ' TL = ' + esc(tl(kodlar.length * KOD_UCRETI)) + '</span>' +
       '<span class="soluk kucuk">Deneme döneminde ücret alınmıyor. Sadece kasada onaylanan kodlar sayılır.</span></div>' +
+    '<div class="sutun" style="gap:4px"><h3>Gelen müşteriler</h3><p class="soluk kucuk">Bu ay kodu kasada onaylananlar' + (kodlar.length ? ': ' + kodlar.length + ' masa, ' + kodlar.reduce((a, k) => a + ((k.talep && Number(k.talep.kisi)) || 0), 0) + ' kişi.' : '.') + '</p></div>' +
+    (kodlar.length
+      ? '<div class="kart sutun" style="gap:0;padding:4px 16px">' + kodlar.slice(0, 50).map((k) => {
+          const f = k.teklif || {}, t = k.talep || {};
+          return '<div class="satir arasi" style="padding:12px 0;border-bottom:1px solid var(--cizgi)"><div class="sutun" style="gap:2px"><span style="font-weight:600">' + esc((t.kisi ? t.kisi + ' kişi · ' : '') + (f.kapsam || '')) + '</span>' +
+            '<span class="soluk kucuk">' + esc(gunYaz(k.kullanildi_at) + ' · ' + saatYaz(k.kullanildi_at) + (k.puan ? ' · puan ' + k.puan + '/5' : '')) + '</span></div>' +
+            '<span class="oran-yazi" style="font-size:20px">%' + Number(f.oran || 0) + '</span></div>';
+        }).join('') + '</div>'
+      : '<div class="kart kesik"><p class="soluk">Bu ay henüz kodu onaylanan müşteri yok.</p></div>') +
     (ort ? '<div class="kart"><p style="font-weight:600">Müşteri puanın: ' + ort + ' / 5</p><p class="soluk kucuk">' + puanlar.length + ' değerlendirme</p></div>' : '') +
     '<div class="kart sutun"><h3>Üyelik planları</h3><p class="soluk kucuk">Planlar yakında açılacak. İlk ay ücretsiz olacak.</p>' +
       '<p style="font-size:14px">Gümüş: 1.000 TL / ay<br>Altın: 1.500 TL / ay<br>Platin: 3.000 TL / ay</p></div>' +
