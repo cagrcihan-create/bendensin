@@ -106,7 +106,7 @@ ol.adimlar{margin:0;padding-left:20px;font-size:14px;display:flex;flex-direction
 const SUPA_URL = 'https://oeapprlxcipkjbfoilcm.supabase.co';
 const SUPA_KEY = 'sb_publishable_ol7ux6gb9ajfh7ux-_G_Tg_p_LfsAC9';
 const KOD_UCRETI = 10;
-const SURUM = '2026-11-17-13'; // Her yüklemede artır: açık uygulamalar yeni sürümü buna bakarak fark eder.
+const SURUM = '2026-11-18-1'; // Her yüklemede artır: açık uygulamalar yeni sürümü buna bakarak fark eder.
 const YARICAP = Infinity; // Şimdilik mesafe sınırı yok. Geri açmak için metre yaz (örn. 1500) ve veritabanındaki private.menzil_m() ile aynı yap.
 const SINIR_VAR = isFinite(YARICAP);
 const KAPSAMLAR = ['Yemek', 'İçecek', 'Tatlı', 'Yemek + içecek', 'Tüm menü'];
@@ -660,6 +660,43 @@ EKRAN.bekleme = {
 
 /* ---------- işletme: panel ---------- */
 const PLAN_AD = { ucretsiz: 'Ücretsiz', gumus: 'Gümüş', altin: 'Altın', platin: 'Platin' };
+const PLANLAR = [
+  { id: 'ucretsiz', fiyat: 0, ozellik: ['Günde 5 talebe yanıt', 'Elle kabul ve karşı teklif', 'Haritada standart görünüm', 'Kod başı ücret: 10 TL'] },
+  { id: 'gumus', fiyat: 1000, ozellik: ['Sınırsız talebe yanıt', 'Otomatik kabul: 1 saat dilimi', 'Haftalık rapor', 'Daha düşük kod başı ücret'] },
+  { id: 'altin', fiyat: 1500, ozellik: ['Gümüş plandaki her şey', 'Otomatik kabul: sınırsız saat dilimi', 'Haritada ve listede üst sıra', 'Boş saat kampanyası bildirimleri', 'Müşteri istatistikleri'] },
+  { id: 'platin', fiyat: 3000, ozellik: ['Altın plandaki her şey', 'Bölgende en üst sıra', 'Tekrar gelen müşteriye özel teklif', 'Birden fazla şubeyi tek panelden yönetme', 'Öncelikli destek'] }
+];
+function tarihUzun(ts) { const d = new Date(ts); return d.getDate() + ' ' + ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'][d.getMonth()] + ' ' + d.getFullYear(); }
+function planKarti() {
+  const k = S.kafe, simdi = Date.now();
+  const denemede = k.plan !== 'ucretsiz' && k.deneme_bitis && new Date(k.deneme_bitis).getTime() > simdi;
+  const durum = k.plan === 'ucretsiz' ? 'Ücretsiz plandasın.'
+    : denemede ? PLAN_AD[k.plan] + ' plandasın. Ücretsiz deneme ' + tarihUzun(k.deneme_bitis) + ' tarihinde bitiyor.'
+    : PLAN_AD[k.plan] + ' plandasın.';
+  return '<div class="sutun" style="gap:4px"><h3>Üyelik planın</h3><p class="soluk kucuk">' + esc(durum) + '</p></div>' +
+    PLANLAR.map((p) => {
+      const secili = p.id === k.plan, soru = S.planSor === p.id;
+      const fiyat = p.fiyat ? tl(p.fiyat) + ' / ay' : 'Ücretsiz';
+      let alt;
+      if (secili) alt = '<p class="yesil-yazi" style="font-weight:600;font-size:14px">Şu anki planın</p>';
+      else if (soru) {
+        const deneme = p.id !== 'ucretsiz' && !k.deneme_kullanildi;
+        const metin = p.id === 'ucretsiz'
+          ? 'Ücretsiz plana geçersen ücretli plan özelliklerin kapanır.'
+          : deneme
+            ? PLAN_AD[p.id] + ' plana geçiyorsun. İlk ay ücretsiz, deneme ' + tarihUzun(new Date(simdi + 30 * 864e5)) + ' civarında biter. Sonrasında aylık ' + tl(p.fiyat) + '.'
+            : PLAN_AD[p.id] + ' plana geçiyorsun. Ücretsiz deneme hakkını kullandığın için aylık ' + tl(p.fiyat) + ' ücretlendirilir.';
+        alt = '<div class="sutun" style="gap:8px"><p style="font-size:14px;font-weight:600">' + esc(metin) + '</p>' +
+          '<div class="izgara" style="grid-template-columns:1fr 1fr"><button type="button" class="btn dar" data-a="plan-vazgec">Vazgeç</button>' +
+          '<button type="button" class="btn ana dar" data-a="plan-onay" data-v="' + p.id + '">Plana geç</button></div></div>';
+      } else alt = '<button type="button" class="btn dar" data-a="plan-sor" data-v="' + p.id + '">Bu plana geç</button>';
+      return '<div class="kart sutun" style="gap:8px;border:2px solid ' + (secili ? 'var(--yesil)' : 'var(--cizgi)') + '">' +
+        '<div class="satir arasi" style="align-items:baseline"><span style="font-family:var(--baslik);font-weight:700;font-size:20px">' + esc(PLAN_AD[p.id]) + '</span>' +
+        '<span class="soluk" style="font-weight:600;font-size:14px">' + esc(fiyat) + '</span></div>' +
+        '<ul style="margin:0;padding-left:18px;font-size:14px;line-height:1.5">' + p.ozellik.map((o) => '<li>' + esc(o) + '</li>').join('') + '</ul>' + alt + '</div>';
+    }).join('') +
+    '<p class="soluk kucuk">Ücretli planlarda ilk ay ücretsiz. Bazı plan özellikleri kademeli olarak açılıyor.</p>';
+}
 EKRAN.panel = {
   html() {
     const sekmeler = [['talepler', 'Talepler'], ['otomatik', 'Otomatik'], ['menu', 'Menü'], ['hesap', 'Hesap']];
@@ -878,8 +915,7 @@ SEKME.hesap = async function () {
         }).join('') + '</div>'
       : '<div class="kart kesik"><p class="soluk">Bu ay henüz kodu onaylanan müşteri yok.</p></div>') +
     (ort ? '<div class="kart"><p style="font-weight:600">Müşteri puanın: ' + ort + ' / 5</p><p class="soluk kucuk">' + puanlar.length + ' değerlendirme</p></div>' : '') +
-    '<div class="kart sutun"><h3>Üyelik planları</h3><p class="soluk kucuk">Planlar yakında açılacak. İlk ay ücretsiz olacak.</p>' +
-      '<p style="font-size:14px">Gümüş: 1.000 TL / ay<br>Altın: 1.500 TL / ay<br>Platin: 3.000 TL / ay</p></div>' +
+    '<div id="plan-alani" class="sutun" style="gap:12px">' + planKarti() + '</div>' +
     (S.profil.yonetici ? '<button type="button" class="btn yesil tam" data-a="git" data-v="yonetici">İşletme başvurularını yönet</button>' : '') +
     kurulumKarti();
 };
@@ -944,6 +980,15 @@ const ISLEM = {
     git('teklifler');
   },
   'talep-geri': () => git('talep'),
+  'plan-sor': (el) => { S.planSor = el.dataset.v; const a = $('#plan-alani'); if (a) a.innerHTML = planKarti(); },
+  'plan-vazgec': () => { S.planSor = null; const a = $('#plan-alani'); if (a) a.innerHTML = planKarti(); },
+  'plan-onay': async (el) => {
+    const r = await q(db.rpc('plan_sec', { p_plan: el.dataset.v }));
+    Object.assign(S.kafe, r); S.planSor = null;
+    toast(PLAN_AD[r.plan] + ' plana geçtin.');
+    const rozet = document.querySelector('.rozet'); if (rozet) rozet.textContent = PLAN_AD[r.plan] + ' üye';
+    const a = $('#plan-alani'); if (a) a.innerHTML = planKarti();
+  },
   'vazgec-sor': () => { S.vazgecSor = true; kodCiz(); },
   'vazgec-hayir': () => { S.vazgecSor = false; kodCiz(); },
   'vazgec-evet': async () => {
