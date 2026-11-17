@@ -105,7 +105,8 @@ ol.adimlar{margin:0;padding-left:20px;font-size:14px;display:flex;flex-direction
 const SUPA_URL = 'https://oeapprlxcipkjbfoilcm.supabase.co';
 const SUPA_KEY = 'sb_publishable_ol7ux6gb9ajfh7ux-_G_Tg_p_LfsAC9';
 const KOD_UCRETI = 10;
-const YARICAP = 1500;
+const YARICAP = Infinity; // Şimdilik mesafe sınırı yok. Geri açmak için metre yaz (örn. 1500) ve veritabanındaki private.menzil_m() ile aynı yap.
+const SINIR_VAR = isFinite(YARICAP);
 const KAPSAMLAR = ['Yemek', 'İçecek', 'Tatlı', 'Yemek + içecek', 'Tüm menü'];
 const KAPSAM_KATEGORI = {
   'Yemek': ['Yemek'], 'İçecek': ['İçecek'], 'Tatlı': ['Tatlı'],
@@ -360,10 +361,10 @@ function talepHaritaCiz() {
   (S.kafeler || []).forEach((k) => L.marker([k.lat, k.lng], { icon: kafeIkon(), title: k.ad, keyboard: false }).addTo(katman));
   const y = $('#konum-yazi');
   if (S.konum) {
-    L.circle([S.konum.lat, S.konum.lng], { radius: YARICAP, color: '#0E6B63', weight: 1.5, dashArray: '5 5', fillColor: '#0E6B63', fillOpacity: 0.08, interactive: false }).addTo(katman);
+    if (SINIR_VAR) L.circle([S.konum.lat, S.konum.lng], { radius: YARICAP, color: '#0E6B63', weight: 1.5, dashArray: '5 5', fillColor: '#0E6B63', fillOpacity: 0.08, interactive: false }).addTo(katman);
     L.marker([S.konum.lat, S.konum.lng], { icon: benIkon(), keyboard: false }).addTo(katman);
     const yakin = (S.kafeler || []).filter((k) => mesafe(S.konum.lat, S.konum.lng, k.lat, k.lng) <= YARICAP).length;
-    if (y) y.textContent = S.kafeler ? (yakin ? 'Çevrende ' + yakin + ' kafe var (1,5 km).' : 'Çevrende henüz kayıtlı kafe yok (1,5 km).') : 'Konumun alındı.';
+    if (y) y.textContent = S.kafeler ? (SINIR_VAR ? (yakin ? 'Çevrende ' + yakin + ' kafe var (1,5 km).' : 'Çevrende henüz kayıtlı kafe yok (1,5 km).') : (yakin ? 'Talebin ' + yakin + ' kayıtlı kafeye gidecek.' : 'Henüz kayıtlı kafe yok.')) : 'Konumun alındı.';
   }
 }
 
@@ -419,7 +420,7 @@ function teklifCiz(talep) {
           ? '1,5 km çevrende kayıtlı kafe yok, bu yüzden teklif gelmez. En yakın kafe ' + (Math.min.apply(null, uzakliklar) / 1000).toFixed(1).replace('.', ',') + ' km uzakta. Yaklaşınca tekrar dene.'
           : 'Henüz kayıtlı kafe yok, bu yüzden teklif gelmez.';
       } else {
-        bekleme = 'Çevrendeki ' + yakin + ' kafeye haber verildi. Bir kafe kabul edince teklifi burada görünür; seçince kodun çıkar.';
+        bekleme = (SINIR_VAR ? 'Çevrendeki ' : '') + yakin + ' kafeye haber verildi. Bir kafe kabul edince teklifi burada görünür; seçince kodun çıkar.';
       }
     }
     liste.innerHTML = '<div class="kart kesik"><p class="soluk">' + (bitti ? 'Bu sefer kimse teklif vermedi. Farklı bir oranla tekrar deneyebilirsin.' : bekleme) + '</p></div>' +
@@ -628,7 +629,7 @@ SEKME.talepler = function () {
       '<div class="satir"><input id="kod-giris" class="buyu" type="text" autocapitalize="characters" autocomplete="off" spellcheck="false" maxlength="8" placeholder="Örnek: K7M42Q" style="font-family:var(--baslik);font-weight:700;letter-spacing:.1em;text-transform:uppercase">' +
       '<button type="submit" class="btn yesil dar">Onayla</button></div>' +
       '<p id="kod-sonuc" class="kucuk" role="status">' + (S.kodSonuc ? esc(S.kodSonuc) : '') + '</p></form>' +
-    '<div class="sutun" style="gap:4px"><h3>Yakındaki talepler</h3><p class="soluk kucuk">1,5 km çevrendeki açık talepler. Liste kendiliğinden yenilenir.</p></div>' +
+    '<div class="sutun" style="gap:4px"><h3>' + (SINIR_VAR ? 'Yakındaki talepler' : 'Açık talepler') + '</h3><p class="soluk kucuk">' + (SINIR_VAR ? '1,5 km çevrendeki açık talepler. ' : '') + 'Liste kendiliğinden yenilenir.</p></div>' +
     '<div id="talep-liste" class="sutun"><p class="soluk">Yükleniyor…</p></div>';
   $('#kod-form').addEventListener('submit', (e) => { e.preventDefault(); calistir(kodOnayla, e.submitter); });
   S.talepImza = null;
