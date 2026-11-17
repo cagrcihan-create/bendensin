@@ -105,7 +105,7 @@ ol.adimlar{margin:0;padding-left:20px;font-size:14px;display:flex;flex-direction
 const SUPA_URL = 'https://oeapprlxcipkjbfoilcm.supabase.co';
 const SUPA_KEY = 'sb_publishable_ol7ux6gb9ajfh7ux-_G_Tg_p_LfsAC9';
 const KOD_UCRETI = 10;
-const SURUM = '2026-11-17-8'; // Her yüklemede artır: açık uygulamalar yeni sürümü buna bakarak fark eder.
+const SURUM = '2026-11-17-9'; // Her yüklemede artır: açık uygulamalar yeni sürümü buna bakarak fark eder.
 const YARICAP = Infinity; // Şimdilik mesafe sınırı yok. Geri açmak için metre yaz (örn. 1500) ve veritabanındaki private.menzil_m() ile aynı yap.
 const SINIR_VAR = isFinite(YARICAP);
 const KAPSAMLAR = ['Yemek', 'İçecek', 'Tatlı', 'Yemek + içecek', 'Tüm menü'];
@@ -643,7 +643,7 @@ SEKME.talepler = function () {
       '<p id="kod-sonuc" class="kucuk" role="status">' + (S.kodSonuc ? esc(S.kodSonuc) : '') + '</p></form>' +
     '<div class="sutun" style="gap:4px"><h3>' + (SINIR_VAR ? 'Yakındaki talepler' : 'Açık talepler') + '</h3><p class="soluk kucuk">' + (SINIR_VAR ? '1,5 km çevrendeki açık talepler. ' : '') + 'Liste kendiliğinden yenilenir.</p></div>' +
     '<div id="talep-liste" class="sutun"><p class="soluk">Yükleniyor…</p></div>' +
-    '<div class="sutun" style="gap:4px"><h3>Bugün verdiğin teklifler</h3><p id="gecmis-ozet" class="soluk kucuk"></p></div>' +
+    '<div class="sutun" style="gap:4px"><h3>Gelmesi beklenen müşteriler</h3><p id="gecmis-ozet" class="soluk kucuk"></p></div>' +
     '<div id="gecmis-liste" class="sutun"></div>';
   $('#kod-form').addEventListener('submit', (e) => { e.preventDefault(); calistir(kodOnayla, e.submitter); });
   S.talepImza = null;
@@ -686,25 +686,26 @@ function gecmisCiz(teklifler, kodlar) {
   let secilen = 0, gelen = 0, gelenKisi = 0;
   const satirlar = bugun.map((f) => {
     const k = kodBul[f.id], t = f.talep || {};
-    let durum, renk = 'soluk', dugme = '';
+    let durum, renk = 'soluk', dugme = '', bekleniyor = false;
     if (f.durum === 'secildi') {
       secilen++;
       if (k && k.durum === 'kullanildi') { gelen++; gelenKisi += Number(t.kisi) || 0; durum = 'Geldi, kod onaylandı' + (k.kullanildi_at ? ' · ' + saatYaz(k.kullanildi_at) : ''); renk = 'yesil-yazi'; }
-      else if (k && k.durum === 'aktif' && new Date(k.bitis).getTime() > Date.now()) { durum = 'Müşteri seçti, gelmesi bekleniyor · ' + kalanDk(k.bitis) + ' dk'; renk = 'yesil-yazi';
+      else if (k && k.durum === 'aktif' && new Date(k.bitis).getTime() > Date.now()) { durum = 'Müşteri seçti, gelmesi bekleniyor · ' + kalanDk(k.bitis) + ' dk'; renk = 'yesil-yazi'; bekleniyor = true;
         dugme = '<button type="button" class="btn yesil dar" data-a="kod-odak">Müşteri geldi, kodunu gir</button>'; }
       else { durum = 'Müşteri seçti ama gelmedi, kodun süresi doldu'; }
     } else if (f.durum === 'reddedildi') { durum = 'Müşteri başka bir teklifi seçti'; }
     else if (t.durum === 'acik' && new Date(t.bitis).getTime() > Date.now()) { durum = 'Müşterinin seçmesi bekleniyor'; }
     else { durum = 'Müşteri seçim yapmadı'; }
+    if (!bekleniyor) return ''; // listede yalnızca kodu açık olanlar görünür; diğerleri özette sayılır
     const tur = f.tur === 'karsi' ? 'Karşı teklif' : f.tur === 'otomatik' ? 'Otomatik kabul' : 'Kabul';
     return '<div class="kart sutun" style="gap:4px"><div class="satir arasi"><div class="sutun" style="gap:2px"><span style="font-weight:600">' + esc((t.kisi ? t.kisi + ' kişi · ' : '') + f.kapsam) + '</span>' +
       '<span class="soluk kucuk">' + esc(tur + ' · ' + saatYaz(f.created_at)) + '</span></div><span class="oran-yazi">%' + Number(f.oran) + '</span></div>' +
       '<p class="' + renk + '" style="font-size:14px;font-weight:600">' + esc(durum) + '</p>' + dugme + '</div>';
   });
   ozet.textContent = bugun.length
-    ? bugun.length + ' teklif verdin · ' + secilen + ' müşteri seçti · ' + gelen + ' masa geldi' + (gelenKisi ? ' (' + gelenKisi + ' kişi)' : '') + '.'
+    ? 'Bugün: ' + bugun.length + ' teklif verdin · ' + secilen + ' müşteri seçti · ' + gelen + ' masa geldi' + (gelenKisi ? ' (' + gelenKisi + ' kişi)' : '') + '.'
     : 'Bugün henüz teklif vermedin.';
-  liste.innerHTML = satirlar.join('');
+  liste.innerHTML = satirlar.join('') || '<div class="kart kesik"><p class="soluk">Şu an gelmesi beklenen müşteri yok.</p></div>';
 }
 async function kodOnayla() {
   const giris = $('#kod-giris'), sonuc = $('#kod-sonuc');
