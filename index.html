@@ -730,13 +730,17 @@ async function urunEkle() {
 
 SEKME.hesap = async function () {
   const el = $('#sekme-icerik');
-  el.innerHTML = '<p class="soluk">Yükleniyor…</p>';
+  // Çıkış düğmesi veriden bağımsız, hemen ve en üstte görünür.
+  el.innerHTML =
+    '<div class="kart sutun"><div class="sutun" style="gap:4px"><h3>' + esc(S.kafe.ad) + '</h3><p class="soluk">' + esc(S.kafe.adres) + '</p><p class="soluk kucuk">' + esc(S.session.user.email) + '</p></div>' +
+      '<button type="button" class="btn tam" data-a="cikis">Çıkış yap</button></div>' +
+    '<div id="hesap-veri" class="sutun" style="gap:14px"><p class="soluk">Yükleniyor…</p></div>';
   const d = new Date(), ayBasi = new Date(d.getFullYear(), d.getMonth(), 1).toISOString();
   const kodlar = await q(db.from('kodlar').select('id,durum,kullanildi_at,puan').eq('kafe_id', S.kafe.id).eq('durum', 'kullanildi').gte('kullanildi_at', ayBasi));
-  if (S.view !== 'panel' || S.sekme !== 'hesap') return;
+  if (S.view !== 'panel' || S.sekme !== 'hesap' || !$('#hesap-veri')) return;
   const puanlar = kodlar.filter((k) => k.puan).map((k) => k.puan);
   const ort = puanlar.length ? (puanlar.reduce((a, b) => a + b, 0) / puanlar.length).toFixed(1).replace('.', ',') : null;
-  el.innerHTML =
+  $('#hesap-veri').innerHTML =
     '<div class="kart koyu sutun" style="gap:4px"><span class="soluk kucuk" style="font-weight:600">Bu ay</span>' +
       '<span style="font-family:var(--baslik);font-weight:700;font-size:26px;line-height:1.1">' + kodlar.length + ' kod kullanıldı</span>' +
       '<span style="font-size:14px">Tutar: ' + kodlar.length + ' × ' + KOD_UCRETI + ' TL = ' + esc(tl(kodlar.length * KOD_UCRETI)) + '</span>' +
@@ -744,10 +748,8 @@ SEKME.hesap = async function () {
     (ort ? '<div class="kart"><p style="font-weight:600">Müşteri puanın: ' + ort + ' / 5</p><p class="soluk kucuk">' + puanlar.length + ' değerlendirme</p></div>' : '') +
     '<div class="kart sutun"><h3>Üyelik planları</h3><p class="soluk kucuk">Planlar yakında açılacak. İlk ay ücretsiz olacak.</p>' +
       '<p style="font-size:14px">Gümüş: 1.000 TL / ay<br>Altın: 1.500 TL / ay<br>Platin: 3.000 TL / ay</p></div>' +
-    '<div class="kart sutun" style="gap:4px"><h3>' + esc(S.kafe.ad) + '</h3><p class="soluk">' + esc(S.kafe.adres) + '</p><p class="soluk kucuk">' + esc(S.session.user.email) + '</p></div>' +
     (S.profil.yonetici ? '<button type="button" class="btn yesil tam" data-a="git" data-v="yonetici">İşletme başvurularını yönet</button>' : '') +
-    kurulumKarti() +
-    '<button type="button" class="btn tam" data-a="cikis">Çıkış yap</button>';
+    kurulumKarti();
 };
 
 /* ---------- yönetici ---------- */
