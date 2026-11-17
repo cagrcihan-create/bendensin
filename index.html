@@ -105,7 +105,7 @@ ol.adimlar{margin:0;padding-left:20px;font-size:14px;display:flex;flex-direction
 const SUPA_URL = 'https://oeapprlxcipkjbfoilcm.supabase.co';
 const SUPA_KEY = 'sb_publishable_ol7ux6gb9ajfh7ux-_G_Tg_p_LfsAC9';
 const KOD_UCRETI = 10;
-const SURUM = '2026-11-17-7'; // Her yüklemede artır: açık uygulamalar yeni sürümü buna bakarak fark eder.
+const SURUM = '2026-11-17-8'; // Her yüklemede artır: açık uygulamalar yeni sürümü buna bakarak fark eder.
 const YARICAP = Infinity; // Şimdilik mesafe sınırı yok. Geri açmak için metre yaz (örn. 1500) ve veritabanındaki private.menzil_m() ile aynı yap.
 const SINIR_VAR = isFinite(YARICAP);
 const KAPSAMLAR = ['Yemek', 'İçecek', 'Tatlı', 'Yemek + içecek', 'Tüm menü'];
@@ -331,7 +331,7 @@ EKRAN.talep = {
       '<div class="ic">' +
       (S.kod && S.kod.durum === 'aktif' && new Date(S.kod.bitis).getTime() > Date.now()
         ? '<div class="kart sutun"><div class="sutun" style="gap:2px"><span style="font-weight:600">Kullanılmayı bekleyen kodun var</span>' +
-          '<span class="soluk kucuk">' + esc((S.kod.kafe_ad || 'Kafe') + ' · %' + S.kod.oran + ' indirim') + '. Süresi dolmadan kasada söyle.</span></div>' +
+          '<span class="soluk kucuk">' + esc((S.kod.kafe_ad || 'Kafe') + ' · %' + S.kod.oran + ' indirim') + '. Yeni talep için önce bu kodu kullan ya da koddan vazgeç.</span></div>' +
           '<button type="button" class="btn yesil dar" data-a="git" data-v="kod">Koda dön</button></div>' : '') +
       (S.talep && S.talep.durum === 'acik' && new Date(S.talep.bitis).getTime() > Date.now()
         ? '<div class="kart sutun"><div class="sutun" style="gap:2px"><span style="font-weight:600">Açık bir talebin var</span>' +
@@ -500,7 +500,7 @@ function kodCiz() {
   const k = S.kod, el = $('#kod-icerik');
   if (!el) return;
   if (!k) { return git('talep'); }
-  const imza = JSON.stringify([k.id, k.durum, k.musteri_onay, k.puan, k.durum === 'aktif' ? kalanDk(k.bitis) : 0]);
+  const imza = JSON.stringify([k.id, k.durum, k.musteri_onay, k.puan, k.durum === 'aktif' ? kalanDk(k.bitis) : 0, !!S.vazgecSor]);
   if (imza === S.kodImza) return;
   S.kodImza = imza;
   const ust = '<div class="sutun" style="gap:4px"><span class="ust-yazi">' + (k.durum === 'aktif' ? 'Teklif senin' : k.durum === 'kullanildi' ? 'Kod onaylandı' : 'Kodun süresi doldu') + '</span>' +
@@ -516,7 +516,12 @@ function kodCiz() {
       yol +
       '<p class="soluk kucuk">Kodu kullanmazsan hesabına 1 uyarı yazılır. 2 uyarıda 24 saat talep açamazsın.</p>' +
       (k.musteri_onay ? '<p class="yesil-yazi" style="font-size:14px">Bildirimin alındı, inceleyeceğiz.</p>'
-        : '<button type="button" class="yazi-btn" style="align-self:flex-start;padding:0" data-a="kod-bildir">İndirimi aldım ama kafe kodu girmedi</button>');
+        : '<button type="button" class="yazi-btn" style="align-self:flex-start;padding:0" data-a="kod-bildir">İndirimi aldım ama kafe kodu girmedi</button>') +
+      (S.vazgecSor
+        ? '<div class="kart sutun"><p style="font-weight:600">Koddan vazgeçersen kullanılmamış sayılır ve hesabına 1 uyarı yazılır.</p>' +
+          '<div class="izgara" style="grid-template-columns:1fr 1fr"><button type="button" class="btn dar" data-a="vazgec-hayir">Kod kalsın</button>' +
+          '<button type="button" class="btn ana dar" data-a="vazgec-evet">Vazgeç</button></div></div>'
+        : '<button type="button" class="yazi-btn" style="align-self:flex-start;padding:0" data-a="vazgec-sor">Koddan vazgeç</button>');
   } else if (k.durum === 'kullanildi') {
     govde = '<div class="kart sutun"><p style="font-weight:600">%' + Number(k.oran) + ' indirimin onaylandı. Afiyet olsun.</p>' +
       '<p class="soluk">Kafeyi puanla (1 kötü, 5 çok iyi)</p>' +
@@ -868,6 +873,14 @@ const ISLEM = {
     git('teklifler');
   },
   'talep-geri': () => git('talep'),
+  'vazgec-sor': () => { S.vazgecSor = true; kodCiz(); },
+  'vazgec-hayir': () => { S.vazgecSor = false; kodCiz(); },
+  'vazgec-evet': async () => {
+    await q(db.rpc('kod_vazgec', { p_kod_id: S.kod.id }));
+    S.vazgecSor = false; S.kod = null; S.talep = null;
+    toast('Koddan vazgeçtin.');
+    git('talep');
+  },
   'kod-odak': () => { const g = $('#kod-giris'); if (g) { g.scrollIntoView({ block: 'center' }); g.focus(); } },
   'talep-iptal': async () => { if (S.talep) await q(db.rpc('talep_iptal', { p_talep: S.talep.id })); S.talep = null; S.teklifler = []; git('talep'); },
   'menu-ac': (el) => { S.menuTeklif = S.teklifler.find((x) => x.id === el.dataset.v); if (S.menuTeklif) git('menu'); },
