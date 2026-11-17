@@ -106,7 +106,7 @@ ol.adimlar{margin:0;padding-left:20px;font-size:14px;display:flex;flex-direction
 const SUPA_URL = 'https://oeapprlxcipkjbfoilcm.supabase.co';
 const SUPA_KEY = 'sb_publishable_ol7ux6gb9ajfh7ux-_G_Tg_p_LfsAC9';
 const KOD_UCRETI = 10;
-const SURUM = '2026-11-18-1'; // Her yüklemede artır: açık uygulamalar yeni sürümü buna bakarak fark eder.
+const SURUM = '2026-11-18-2'; // Her yüklemede artır: açık uygulamalar yeni sürümü buna bakarak fark eder.
 const YARICAP = Infinity; // Şimdilik mesafe sınırı yok. Geri açmak için metre yaz (örn. 1500) ve veritabanındaki private.menzil_m() ile aynı yap.
 const SINIR_VAR = isFinite(YARICAP);
 const KAPSAMLAR = ['Yemek', 'İçecek', 'Tatlı', 'Yemek + içecek', 'Tüm menü'];
@@ -666,6 +666,8 @@ const PLANLAR = [
   { id: 'altin', fiyat: 1500, ozellik: ['Gümüş plandaki her şey', 'Otomatik kabul: sınırsız saat dilimi', 'Haritada ve listede üst sıra', 'Boş saat kampanyası bildirimleri', 'Müşteri istatistikleri'] },
   { id: 'platin', fiyat: 3000, ozellik: ['Altın plandaki her şey', 'Bölgende en üst sıra', 'Tekrar gelen müşteriye özel teklif', 'Birden fazla şubeyi tek panelden yönetme', 'Öncelikli destek'] }
 ];
+const GUNLUK_YANIT = { ucretsiz: 5 };       // null = sınırsız
+const SAAT_DILIMI = { ucretsiz: 0, gumus: 1 }; // null = sınırsız
 function tarihUzun(ts) { const d = new Date(ts); return d.getDate() + ' ' + ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'][d.getMonth()] + ' ' + d.getFullYear(); }
 function planKarti() {
   const k = S.kafe, simdi = Date.now();
@@ -737,7 +739,7 @@ SEKME.talepler = function () {
       '<div class="satir"><input id="kod-giris" class="buyu" type="text" autocapitalize="characters" autocomplete="off" spellcheck="false" maxlength="8" placeholder="Örnek: K7M42Q" style="font-family:var(--baslik);font-weight:700;letter-spacing:.1em;text-transform:uppercase">' +
       '<button type="submit" class="btn yesil dar">Onayla</button></div>' +
       '<p id="kod-sonuc" class="kucuk" role="status">' + (S.kodSonuc ? esc(S.kodSonuc) : '') + '</p></form>' +
-    '<div class="sutun" style="gap:4px"><h3>' + (SINIR_VAR ? 'Yakındaki talepler' : 'Açık talepler') + '</h3><p class="soluk kucuk">' + (SINIR_VAR ? '1,5 km çevrendeki açık talepler. ' : '') + 'Liste kendiliğinden yenilenir.</p></div>' +
+    '<div class="sutun" style="gap:4px"><h3>' + (SINIR_VAR ? 'Yakındaki talepler' : 'Açık talepler') + '</h3><p class="soluk kucuk">' + (SINIR_VAR ? '1,5 km çevrendeki açık talepler. ' : '') + 'Liste kendiliğinden yenilenir.</p><p id="yanit-hakki" class="kucuk" style="font-weight:600"></p></div>' +
     '<div id="talep-liste" class="sutun"><p class="soluk">Yükleniyor…</p></div>' +
     '<div class="sutun" style="gap:4px"><h3>Gelmesi beklenen müşteriler</h3><p id="gecmis-ozet" class="soluk kucuk"></p></div>' +
     '<div id="gecmis-liste" class="sutun"></div>' +
@@ -759,6 +761,7 @@ SEKME.talepler = function () {
     if (imza === S.talepImza) return;
     S.talepImza = imza;
     gecmisCiz(teklifler, kodlar);
+    yanitHakkiCiz(teklifler);
     if (!talepler.length) { liste.innerHTML = '<div class="kart kesik"><p class="soluk">Şu an açık talep yok. Yeni talep gelince burada görünür.</p></div>'; return; }
     liste.innerHTML = talepler.map((t) => {
       const f = benim[t.id];
@@ -773,6 +776,21 @@ SEKME.talepler = function () {
     }).join('');
   }, 5000);
 };
+// Ücretsiz planda günlük yanıt hakkını gösterir.
+function yanitHakkiCiz(teklifler) {
+  const el = $('#yanit-hakki'); if (!el) return;
+  const sinir = GUNLUK_YANIT[S.kafe.plan];
+  if (sinir == null) { el.innerHTML = ''; return; }
+  const d = new Date(), gunBasi = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const kullanilan = teklifler.filter((f) => (f.tur === 'kabul' || f.tur === 'karsi') && new Date(f.created_at).getTime() >= gunBasi).length;
+  const kalan = Math.max(0, sinir - kullanilan);
+  el.className = 'kucuk ' + (kalan ? 'yesil-yazi' : 'hata-yazi');
+  el.style.fontWeight = '600';
+  el.innerHTML = kalan
+    ? 'Bugün kalan yanıt hakkın: ' + kalan + ' / ' + sinir + ' (Ücretsiz plan)'
+    : 'Bugünkü ' + sinir + ' yanıt hakkın bitti. <button type="button" class="yazi-btn" style="padding:0" data-a="sekme" data-v="hesap">Gümüş plana geç</button>';
+}
+
 // İşletmenin bugün verdiği teklifler ve her birinin sonucu.
 function gecmisCiz(teklifler, kodlar) {
   const ozet = $('#gecmis-ozet'), liste = $('#gecmis-liste');
@@ -829,23 +847,33 @@ SEKME.otomatik = async function () {
   const gunAd = { haftaici: 'Hafta içi', haftasonu: 'Hafta sonu', hergun: 'Her gün' };
   const secenek = (id, etiket) => '<div class="alan buyu"><label for="' + id + '">' + etiket + '</label><select id="' + id + '">' +
     [0].concat(ORANLAR).map((v) => '<option value="' + v + '"' + (v === 15 ? ' selected' : '') + '>' + (v ? '%' + v : 'Yok') + '</option>').join('') + '</select></div>';
+  const sinir = SAAT_DILIMI[S.kafe.plan], acik = kurallar.filter((r) => r.aktif).length;
+  const planBilgi = sinir === 0
+    ? '<div class="kart sutun"><p style="font-weight:600">Otomatik kabul Gümüş plandan itibaren açılır.</p><p class="soluk kucuk">Ücretsiz planda talepleri elle kabul edersin. Ücretli planlarda ilk ay ücretsiz.</p>' +
+      '<button type="button" class="btn yesil dar" data-a="sekme" data-v="hesap">Planları gör</button></div>'
+    : sinir === 1
+      ? '<p class="soluk kucuk">Gümüş planda 1 açık saat dilimi kullanabilirsin. Daha fazlası Altın planda.</p>'
+      : '';
+  const formAcik = sinir == null || acik < sinir;
   el.innerHTML =
-    '<p class="soluk">Açık olan saatlerde, sınırın altındaki talepler sen onaylamadan kabul edilir.</p>' +
+    '<p class="soluk">Açık olan saatlerde, sınırın altındaki talepler sen onaylamadan kabul edilir.</p>' + planBilgi +
     (kurallar.length ? kurallar.map((r) =>
       '<div class="kart sutun"><div class="satir arasi"><div class="sutun" style="gap:2px"><span style="font-weight:600">' + esc(gunAd[r.gunler] + ' ' + r.baslangic.slice(0, 5) + '–' + r.bitis.slice(0, 5)) + '</span>' +
-      '<span class="soluk kucuk">En fazla: içecek %' + r.max_icecek + ' · tatlı %' + r.max_tatli + ' · yemek %' + r.max_yemek + '</span></div>' +
+      '<span class="soluk kucuk">En fazla: içecek %' + r.max_icecek + ' · tatlı %' + r.max_tatli + ' · yemek %' + r.max_yemek + '</span>' +
+      (sinir === 0 && r.aktif ? '<span class="hata-yazi kucuk" style="font-weight:600">Ücretsiz planda çalışmıyor</span>' : '') + '</div>' +
       '<button type="button" class="chip" data-a="kural-ac" data-v="' + esc(r.id) + '" data-durum="' + (r.aktif ? '1' : '0') + '" aria-pressed="' + r.aktif + '">' + (r.aktif ? 'Açık' : 'Kapalı') + '</button></div>' +
       '<button type="button" class="yazi-btn" style="align-self:flex-start;padding:0" data-a="kural-sil" data-v="' + esc(r.id) + '">Bu saati sil</button></div>').join('')
       : '<div class="kart kesik"><p class="soluk">Henüz otomatik kabul saati eklemedin.</p></div>') +
+    (!formAcik ? (sinir ? '<div class="kart kesik"><p class="soluk">Yeni saat eklemek için açık olan saati kapat ya da Altın plana geç.</p></div>' : '') :
     '<form id="kural-form" class="kart sutun" novalidate><h3>Yeni saat dilimi</h3>' +
       '<div class="alan"><label for="r-gun">Günler</label><select id="r-gun"><option value="haftaici">Hafta içi</option><option value="haftasonu">Hafta sonu</option><option value="hergun">Her gün</option></select></div>' +
       '<div class="satir"><div class="alan buyu"><label for="r-bas">Başlangıç</label><input id="r-bas" type="time" value="14:00"></div>' +
         '<div class="alan buyu"><label for="r-bit">Bitiş</label><input id="r-bit" type="time" value="17:00"></div></div>' +
       '<div class="satir">' + secenek('r-icecek', 'İçecek') + secenek('r-tatli', 'Tatlı') + secenek('r-yemek', 'Yemek') + '</div>' +
-      '<button type="submit" class="btn yesil tam">Saat dilimini ekle</button></form>' +
+      '<button type="submit" class="btn yesil tam">Saat dilimini ekle</button></form>') +
     '<div class="kart sutun"><div class="sutun" style="gap:3px"><h3>En düşük hesap tutarı</h3><p class="soluk kucuk">Hesap bu tutarın altındaysa indirim geçerli olmaz. Müşteri bunu teklifte görür.</p></div>' +
       '<div class="izgara" style="grid-template-columns:repeat(4,minmax(0,1fr))">' + chipler('alt-sinir', [0, 100, 150, 200], S.kafe.alt_sinir, '', (v) => v ? v + ' TL' : 'Yok') + '</div></div>';
-  $('#kural-form').addEventListener('submit', (e) => { e.preventDefault(); calistir(kuralEkle, e.submitter); });
+  if ($('#kural-form')) $('#kural-form').addEventListener('submit', (e) => { e.preventDefault(); calistir(kuralEkle, e.submitter); });
 };
 async function kuralEkle() {
   const bas = $('#r-bas').value, bit = $('#r-bit').value;
