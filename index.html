@@ -106,7 +106,7 @@ ol.adimlar{margin:0;padding-left:20px;font-size:14px;display:flex;flex-direction
 const SUPA_URL = 'https://oeapprlxcipkjbfoilcm.supabase.co';
 const SUPA_KEY = 'sb_publishable_ol7ux6gb9ajfh7ux-_G_Tg_p_LfsAC9';
 const KOD_UCRETI = 10;
-const SURUM = '2026-11-17-12'; // Her yüklemede artır: açık uygulamalar yeni sürümü buna bakarak fark eder.
+const SURUM = '2026-11-17-13'; // Her yüklemede artır: açık uygulamalar yeni sürümü buna bakarak fark eder.
 const YARICAP = Infinity; // Şimdilik mesafe sınırı yok. Geri açmak için metre yaz (örn. 1500) ve veritabanındaki private.menzil_m() ile aynı yap.
 const SINIR_VAR = isFinite(YARICAP);
 const KAPSAMLAR = ['Yemek', 'İçecek', 'Tatlı', 'Yemek + içecek', 'Tüm menü'];
@@ -176,10 +176,34 @@ function cevir(msg) {
   if (/row-level security|permission denied/i.test(m)) return 'Bu işlem için yetkin yok.';
   return m || 'Bir sorun oluştu.';
 }
+// Uygulama uzun süre arka planda kalınca giriş anahtarı (token) eskiyebilir.
+// Böyle bir hata gelirse oturumu bir kez yenileyip isteği tekrar dener.
+let yenileniyor = null;
+function oturumYenile() {
+  if (!yenileniyor) {
+    yenileniyor = db.auth.refreshSession()
+      .then(({ data, error }) => { if (error || !data.session) return false; S.session = data.session; return true; })
+      .catch(() => false)
+      .finally(() => { setTimeout(() => { yenileniyor = null; }, 3000); });
+  }
+  return yenileniyor;
+}
+const oturumHatasi = (r) => r && (r.status === 401 || (r.error && /JWT|token/i.test(r.error.message || '')));
 async function q(sorgu) {
-  const { data, error } = await sorgu;
-  if (error) throw new Error(cevir(error.message));
-  return data;
+  let r = await sorgu;
+  if (r.error && oturumHatasi(r) && S.session) {
+    if (await oturumYenile()) r = await sorgu;
+    if (r.error && oturumHatasi(r)) { oturumBitti(); throw new Error('Oturumun sona erdi. Tekrar giriş yap.'); }
+  }
+  if (r.error) throw new Error(cevir(r.error.message));
+  return r.data;
+}
+function oturumBitti() {
+  dur();
+  db.auth.signOut({ scope: 'local' }).catch(() => {});
+  Object.assign(S, { session: null, profil: null, kafe: null, talep: null, teklifler: [], kod: null, karsi: null, sekme: 'talepler' });
+  S.giris = { mod: 'giris', rol: 'musteri', hata: '', bilgi: 'Oturumun sona erdi. Tekrar giriş yap.' };
+  git('giris');
 }
 
 /* ---------- konum ve harita ---------- */
@@ -646,7 +670,13 @@ EKRAN.panel = {
         sekmeler.map((s) => '<button type="button" data-a="sekme" data-v="' + s[0] + '" aria-pressed="' + (S.sekme === s[0]) + '">' + s[1] + '</button>').join('') + '</div>' +
       '<div id="sekme-icerik" class="sutun" style="gap:14px;flex:1"></div></div>';
   },
-  kur() { Promise.resolve().then(() => (SEKME[S.sekme] || SEKME.talepler)()).catch((e) => toast(e.message, true)); }
+  kur() {
+    Promise.resolve().then(() => (SEKME[S.sekme] || SEKME.talepler)()).catch((e) => {
+      const el = $('#sekme-icerik');
+      if (el && S.view === 'panel') el.innerHTML = '<div class="kart sutun"><p class="hata-yazi">' + esc(e.message) + '</p><button type="button" class="btn dar" data-a="sekme" data-v="' + esc(S.sekme) + '">Tekrar dene</button></div>';
+      else toast(e.message, true);
+    });
+  }
 };
 const SEKME = {};
 
@@ -998,7 +1028,7 @@ async function surumKontrol() {
 }
 surumKontrol();
 setInterval(surumKontrol, 60000);
-document.addEventListener('visibilitychange', () => { if (!document.hidden) surumKontrol(); });
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { surumKontrol(); if (S.session) db.auth.getSession().catch(() => {}); } });
 </script>
 </body>
 </html>
