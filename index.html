@@ -63,6 +63,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{ou
 .rozet{display:inline-block;padding:6px 10px;border-radius:14px;background:var(--murekkep);color:#fff;font-size:13px;font-weight:600;white-space:nowrap}
 .rozet.acik{background:var(--acik-yesil);color:var(--murekkep)}
 label{font-size:14px;font-weight:600}
+select.oran-secici{font-family:var(--baslik);font-weight:700;font-size:20px;height:56px}
 input,select{font-family:inherit;font-size:16px;height:48px;width:100%;padding:0 14px;border-radius:12px;border:1.5px solid var(--cizgi-koyu);background:#fff;color:var(--murekkep)}
 .alan{display:flex;flex-direction:column;gap:6px}
 .sekmeler{display:grid;gap:4px;padding:4px;border-radius:16px;background:var(--acik-yesil)}
@@ -105,7 +106,7 @@ ol.adimlar{margin:0;padding-left:20px;font-size:14px;display:flex;flex-direction
 const SUPA_URL = 'https://oeapprlxcipkjbfoilcm.supabase.co';
 const SUPA_KEY = 'sb_publishable_ol7ux6gb9ajfh7ux-_G_Tg_p_LfsAC9';
 const KOD_UCRETI = 10;
-const SURUM = '2026-11-17-11'; // Her yüklemede artır: açık uygulamalar yeni sürümü buna bakarak fark eder.
+const SURUM = '2026-11-17-12'; // Her yüklemede artır: açık uygulamalar yeni sürümü buna bakarak fark eder.
 const YARICAP = Infinity; // Şimdilik mesafe sınırı yok. Geri açmak için metre yaz (örn. 1500) ve veritabanındaki private.menzil_m() ile aynı yap.
 const SINIR_VAR = isFinite(YARICAP);
 const KAPSAMLAR = ['Yemek', 'İçecek', 'Tatlı', 'Yemek + içecek', 'Tüm menü'];
@@ -141,6 +142,13 @@ function mesafe(lat1, lng1, lat2, lng2) {
 function mesafeYazi(m) {
   const dk = Math.max(1, Math.round(m / 80));
   return (m < 1000 ? Math.round(m / 10) * 10 + ' m' : (m / 1000).toFixed(1).replace('.', ',') + ' km') + ' · ' + dk + ' dk yürüme';
+}
+const ORANLAR = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60];
+function oranSecici(id, etiket, secili, liste) {
+  return '<div class="alan"><label for="' + id + '" style="font-size:15px;font-weight:600">' + etiket + '</label>' +
+    '<select id="' + id + '" class="oran-secici">' +
+    (liste || ORANLAR).map((v) => '<option value="' + v + '"' + (v === Number(secili) ? ' selected' : '') + '>%' + v + ' indirim</option>').join('') +
+    '</select></div>';
 }
 function uzaklikYaz(m) { return m >= 1000 ? (m / 1000).toFixed(1).replace('.', ',') + ' km' : Math.round(m / 10) * 10 + ' m'; }
 const AYLAR = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
@@ -346,8 +354,7 @@ EKRAN.talep = {
       '<div class="satir arasi"><span style="font-size:15px;font-weight:600">Kaç kişisiniz?</span>' +
         '<div class="sayac"><button type="button" data-a="kisi" data-v="-1" aria-label="Kişi sayısını azalt">−</button><span id="kisi-sayi">' + f.kisi + '</span>' +
         '<button type="button" data-a="kisi" data-v="1" aria-label="Kişi sayısını artır">+</button></div></div>' +
-      '<div class="sutun"><span style="font-size:15px;font-weight:600">İstediğin indirim</span>' +
-        '<div class="izgara" style="grid-template-columns:repeat(5,minmax(0,1fr))">' + chipler('oran', [10, 15, 20, 25, 30], f.oran, 'kare', (v) => '%' + v) + '</div></div>' +
+      oranSecici('t-oran', 'İstediğin indirim', f.oran, ORANLAR.filter((v) => v >= 10)) +
       '<div class="sutun" style="margin-top:auto"><button type="button" class="btn ana buyuk tam" data-a="talep-ac">Teklif iste</button>' +
         '<p class="soluk kucuk" style="text-align:center">Talebin 15 dakika açık kalır. Çevrendeki kafeler teklif gönderir.</p></div>' +
       '</div>';
@@ -652,7 +659,7 @@ SEKME.talepler = function () {
         '<span style="font-weight:600">' + esc(t.kisi + ' kişi · ' + t.kapsam) + '</span></div><span class="oran-yazi">%' + Number(t.oran) + '</span></div>' +
       '<h2>Karşı teklifin</h2>' +
       '<div class="sutun"><span style="font-size:15px;font-weight:600">Hangi ürünlerde indirim vereceksin?</span><div class="satir sar" style="gap:8px">' + chipler('k-kapsam', KAPSAMLAR, k.kapsam) + '</div></div>' +
-      '<div class="sutun"><span style="font-size:15px;font-weight:600">Yüzde kaç indirim?</span><div class="izgara" style="grid-template-columns:repeat(6,minmax(0,1fr))">' + chipler('k-oran', [5, 10, 15, 20, 25, 30], k.oran, 'kare', (v) => '%' + v) + '</div></div>' +
+      oranSecici('k-oran', 'Yüzde kaç indirim?', k.oran) +
       '<p class="soluk kucuk">Alkollü içecekler hiçbir teklife dahil değildir.</p>' +
       '<div class="izgara" style="grid-template-columns:1fr 1fr;margin-top:auto"><button type="button" class="btn" data-a="karsi-vazgec">Vazgeç</button>' +
         '<button type="button" class="btn ana" data-a="karsi-gonder">Teklifi gönder</button></div>';
@@ -754,7 +761,7 @@ SEKME.otomatik = async function () {
   if (S.view !== 'panel' || S.sekme !== 'otomatik') return;
   const gunAd = { haftaici: 'Hafta içi', haftasonu: 'Hafta sonu', hergun: 'Her gün' };
   const secenek = (id, etiket) => '<div class="alan buyu"><label for="' + id + '">' + etiket + '</label><select id="' + id + '">' +
-    [0, 5, 10, 15, 20, 25, 30].map((v) => '<option value="' + v + '"' + (v === 15 ? ' selected' : '') + '>' + (v ? '%' + v : 'Yok') + '</option>').join('') + '</select></div>';
+    [0].concat(ORANLAR).map((v) => '<option value="' + v + '"' + (v === 15 ? ' selected' : '') + '>' + (v ? '%' + v : 'Yok') + '</option>').join('') + '</select></div>';
   el.innerHTML =
     '<p class="soluk">Açık olan saatlerde, sınırın altındaki talepler sen onaylamadan kabul edilir.</p>' +
     (kurallar.length ? kurallar.map((r) =>
@@ -900,6 +907,7 @@ const ISLEM = {
   },
   'kisi': (el) => { S.f.kisi = Math.min(12, Math.max(1, S.f.kisi + Number(el.dataset.v))); $('#kisi-sayi').textContent = S.f.kisi; },
   'talep-ac': async () => {
+    const o = $('#t-oran'); if (o) S.f.oran = Number(o.value);
     if (!S.konum) throw new Error('Önce konumun gerekli. Konum iznini aç ya da haritaya dokunarak yerini işaretle.');
     const id = await q(db.rpc('talep_ac', { p_kisi: S.f.kisi, p_kapsam: S.f.kapsam, p_oran: S.f.oran, p_lat: S.konum.lat, p_lng: S.konum.lng }));
     S.talep = await q(db.from('talepler').select('*').eq('id', id).single());
@@ -930,11 +938,12 @@ const ISLEM = {
   },
   'karsi-ac': (el) => {
     const t = (S.acikTalepler || []).find((x) => x.id === el.dataset.v); if (!t) return;
-    dur(); S.karsi = { talep: t, kapsam: t.kapsam, oran: Math.max(5, Math.min(30, t.oran - 5)) }; SEKME.talepler();
+    dur(); S.karsi = { talep: t, kapsam: t.kapsam, oran: Math.max(5, Math.min(60, t.oran - 5)) }; SEKME.talepler();
   },
   'karsi-vazgec': () => { S.karsi = null; SEKME.talepler(); },
   'karsi-gonder': async () => {
     const k = S.karsi;
+    const o = $('#k-oran'); if (o) k.oran = Number(o.value);
     await q(db.rpc('teklif_ver', { p_talep: k.talep.id, p_kapsam: k.kapsam, p_oran: k.oran }));
     S.karsi = null; toast('Teklifin müşteriye gönderildi.'); SEKME.talepler();
   },
@@ -966,6 +975,11 @@ document.addEventListener('click', (e) => {
     app.innerHTML = '<div class="ic ust-bosluk"><h1>Bağlantı kurulamadı</h1><p class="soluk">' + esc(e.message || '') + '</p><button type="button" class="btn ana" onclick="location.reload()">Tekrar dene</button></div>';
   }
 })();
+
+document.addEventListener('change', (e) => {
+  if (e.target.id === 't-oran') S.f.oran = Number(e.target.value);
+  else if (e.target.id === 'k-oran' && S.karsi) S.karsi.oran = Number(e.target.value);
+});
 
 /* ---------- yeni sürüm kontrolü ---------- */
 async function surumKontrol() {
