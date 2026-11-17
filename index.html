@@ -105,6 +105,7 @@ ol.adimlar{margin:0;padding-left:20px;font-size:14px;display:flex;flex-direction
 const SUPA_URL = 'https://oeapprlxcipkjbfoilcm.supabase.co';
 const SUPA_KEY = 'sb_publishable_ol7ux6gb9ajfh7ux-_G_Tg_p_LfsAC9';
 const KOD_UCRETI = 10;
+const SURUM = '2026-11-17-5'; // Her yüklemede artır: açık uygulamalar yeni sürümü buna bakarak fark eder.
 const YARICAP = Infinity; // Şimdilik mesafe sınırı yok. Geri açmak için metre yaz (örn. 1500) ve veritabanındaki private.menzil_m() ile aynı yap.
 const SINIR_VAR = isFinite(YARICAP);
 const KAPSAMLAR = ['Yemek', 'İçecek', 'Tatlı', 'Yemek + içecek', 'Tüm menü'];
@@ -881,6 +882,25 @@ document.addEventListener('click', (e) => {
     app.innerHTML = '<div class="ic ust-bosluk"><h1>Bağlantı kurulamadı</h1><p class="soluk">' + esc(e.message || '') + '</p><button type="button" class="btn ana" onclick="location.reload()">Tekrar dene</button></div>';
   }
 })();
+
+/* ---------- yeni sürüm kontrolü ---------- */
+async function surumKontrol() {
+  try {
+    const r = await fetch('./index.html?s=' + Date.now(), { cache: 'no-store' });
+    const m = (await r.text()).match(/const SURUM = '([^']+)'/);
+    if (m && m[1] !== SURUM && !document.getElementById('guncelle')) {
+      const b = document.createElement('button');
+      b.id = 'guncelle'; b.type = 'button';
+      b.textContent = 'Yeni sürüm hazır. Güncellemek için dokun.';
+      b.style.cssText = 'position:fixed;left:12px;right:12px;top:calc(env(safe-area-inset-top) + 8px);z-index:3000;min-height:48px;border:none;border-radius:14px;background:#0E6B63;color:#fff;font:600 15px Inter,system-ui,sans-serif;padding:0 14px';
+      b.onclick = () => location.replace('./?s=' + Date.now());
+      document.body.appendChild(b);
+    }
+  } catch (e) { /* çevrimdışıysa sessizce geç */ }
+}
+surumKontrol();
+setInterval(surumKontrol, 60000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) surumKontrol(); });
 </script>
 </body>
 </html>
