@@ -105,7 +105,7 @@ ol.adimlar{margin:0;padding-left:20px;font-size:14px;display:flex;flex-direction
 const SUPA_URL = 'https://oeapprlxcipkjbfoilcm.supabase.co';
 const SUPA_KEY = 'sb_publishable_ol7ux6gb9ajfh7ux-_G_Tg_p_LfsAC9';
 const KOD_UCRETI = 10;
-const SURUM = '2026-11-17-5'; // Her yüklemede artır: açık uygulamalar yeni sürümü buna bakarak fark eder.
+const SURUM = '2026-11-17-6'; // Her yüklemede artır: açık uygulamalar yeni sürümü buna bakarak fark eder.
 const YARICAP = Infinity; // Şimdilik mesafe sınırı yok. Geri açmak için metre yaz (örn. 1500) ve veritabanındaki private.menzil_m() ile aynı yap.
 const SINIR_VAR = isFinite(YARICAP);
 const KAPSAMLAR = ['Yemek', 'İçecek', 'Tatlı', 'Yemek + içecek', 'Tüm menü'];
@@ -142,6 +142,8 @@ function mesafeYazi(m) {
   const dk = Math.max(1, Math.round(m / 80));
   return (m < 1000 ? Math.round(m / 10) * 10 + ' m' : (m / 1000).toFixed(1).replace('.', ',') + ' km') + ' · ' + dk + ' dk yürüme';
 }
+function uzaklikYaz(m) { return m >= 1000 ? (m / 1000).toFixed(1).replace('.', ',') + ' km' : Math.round(m / 10) * 10 + ' m'; }
+function saatYaz(ts) { const d = new Date(ts); return String(d.getHours()).padStart(2, '0') + '.' + String(d.getMinutes()).padStart(2, '0'); }
 function kalanDk(ts) { return Math.max(0, Math.ceil((new Date(ts).getTime() - Date.now()) / 60000)); }
 
 let toastT = null;
@@ -635,22 +637,26 @@ SEKME.talepler = function () {
       '<button type="submit" class="btn yesil dar">Onayla</button></div>' +
       '<p id="kod-sonuc" class="kucuk" role="status">' + (S.kodSonuc ? esc(S.kodSonuc) : '') + '</p></form>' +
     '<div class="sutun" style="gap:4px"><h3>' + (SINIR_VAR ? 'Yakındaki talepler' : 'Açık talepler') + '</h3><p class="soluk kucuk">' + (SINIR_VAR ? '1,5 km çevrendeki açık talepler. ' : '') + 'Liste kendiliğinden yenilenir.</p></div>' +
-    '<div id="talep-liste" class="sutun"><p class="soluk">Yükleniyor…</p></div>';
+    '<div id="talep-liste" class="sutun"><p class="soluk">Yükleniyor…</p></div>' +
+    '<div class="sutun" style="gap:4px"><h3>Bugün verdiğin teklifler</h3><p id="gecmis-ozet" class="soluk kucuk"></p></div>' +
+    '<div id="gecmis-liste" class="sutun"></div>';
   $('#kod-form').addEventListener('submit', (e) => { e.preventDefault(); calistir(kodOnayla, e.submitter); });
   S.talepImza = null;
   tekrarla(async (gecerli) => {
     const simdi = new Date().toISOString();
-    const [talepler, teklifler] = await Promise.all([
+    const [talepler, teklifler, kodlar] = await Promise.all([
       q(db.from('talepler').select('id,kisi,kapsam,oran,lat,lng,durum,bitis,created_at').eq('durum', 'acik').gt('bitis', simdi).order('created_at', { ascending: false })),
-      q(db.from('teklifler').select('id,talep_id,kapsam,oran,tur,durum').eq('kafe_id', S.kafe.id).order('created_at', { ascending: false }).limit(60))
+      q(db.from('teklifler').select('id,talep_id,kapsam,oran,tur,durum,created_at,talep:talepler(kisi,durum,bitis)').eq('kafe_id', S.kafe.id).order('created_at', { ascending: false }).limit(60)),
+      q(db.from('kodlar').select('id,teklif_id,durum,bitis,kullanildi_at').eq('kafe_id', S.kafe.id).order('created_at', { ascending: false }).limit(60))
     ]);
     if (!gecerli() || S.view !== 'panel' || S.sekme !== 'talepler' || S.karsi) return;
     S.acikTalepler = talepler;
     const benim = {}; teklifler.forEach((f) => { benim[f.talep_id] = f; });
     const liste = $('#talep-liste'); if (!liste) return;
-    const imza = JSON.stringify([talepler.map((t) => [t.id, kalanDk(t.bitis)]), teklifler.map((f) => [f.id, f.oran, f.kapsam, f.durum])]);
+    const imza = JSON.stringify([talepler.map((t) => [t.id, kalanDk(t.bitis)]), teklifler.map((f) => [f.id, f.oran, f.kapsam, f.durum]), kodlar.map((k) => [k.id, k.durum, k.durum === 'aktif' ? kalanDk(k.bitis) : 0])]);
     if (imza === S.talepImza) return;
     S.talepImza = imza;
+    gecmisCiz(teklifler, kodlar);
     if (!talepler.length) { liste.innerHTML = '<div class="kart kesik"><p class="soluk">Şu an açık talep yok. Yeni talep gelince burada görünür.</p></div>'; return; }
     liste.innerHTML = talepler.map((t) => {
       const f = benim[t.id];
@@ -660,11 +666,40 @@ SEKME.talepler = function () {
         : '<div class="izgara" style="grid-template-columns:1fr 1fr"><button type="button" class="btn yesil dar" data-a="talep-kabul" data-v="' + esc(t.id) + '">Kabul et</button>' +
           '<button type="button" class="btn dar" data-a="karsi-ac" data-v="' + esc(t.id) + '">Karşı teklif ver</button></div>';
       return '<div class="kart sutun"><div class="satir arasi"><div class="sutun" style="gap:2px"><span style="font-weight:600">' + esc(t.kisi + ' kişi · ' + t.kapsam) + '</span>' +
-        '<span class="soluk kucuk">' + esc(Math.round(mesafe(S.kafe.lat, S.kafe.lng, t.lat, t.lng) / 10) * 10 + ' m uzakta · ' + kalanDk(t.bitis) + ' dk kaldı') + '</span></div>' +
+        '<span class="soluk kucuk">' + esc(uzaklikYaz(mesafe(S.kafe.lat, S.kafe.lng, t.lat, t.lng)) + ' uzakta · ' + kalanDk(t.bitis) + ' dk kaldı') + '</span></div>' +
         '<span class="oran-yazi">%' + Number(t.oran) + '</span></div>' + alt + '</div>';
     }).join('');
   }, 5000);
 };
+// İşletmenin bugün verdiği teklifler ve her birinin sonucu.
+function gecmisCiz(teklifler, kodlar) {
+  const ozet = $('#gecmis-ozet'), liste = $('#gecmis-liste');
+  if (!ozet || !liste) return;
+  const d = new Date(), gunBasi = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const kodBul = {}; kodlar.forEach((k) => { kodBul[k.teklif_id] = k; });
+  const bugun = teklifler.filter((f) => new Date(f.created_at).getTime() >= gunBasi);
+  let secilen = 0, gelen = 0, gelenKisi = 0;
+  const satirlar = bugun.map((f) => {
+    const k = kodBul[f.id], t = f.talep || {};
+    let durum, renk = 'soluk';
+    if (f.durum === 'secildi') {
+      secilen++;
+      if (k && k.durum === 'kullanildi') { gelen++; gelenKisi += Number(t.kisi) || 0; durum = 'Geldi, kod onaylandı' + (k.kullanildi_at ? ' · ' + saatYaz(k.kullanildi_at) : ''); renk = 'yesil-yazi'; }
+      else if (k && k.durum === 'aktif' && new Date(k.bitis).getTime() > Date.now()) { durum = 'Müşteri seçti, gelmesi bekleniyor · ' + kalanDk(k.bitis) + ' dk'; renk = 'yesil-yazi'; }
+      else { durum = 'Müşteri seçti ama gelmedi, kodun süresi doldu'; }
+    } else if (f.durum === 'reddedildi') { durum = 'Müşteri başka bir teklifi seçti'; }
+    else if (t.durum === 'acik' && new Date(t.bitis).getTime() > Date.now()) { durum = 'Müşterinin seçmesi bekleniyor'; }
+    else { durum = 'Müşteri seçim yapmadı'; }
+    const tur = f.tur === 'karsi' ? 'Karşı teklif' : f.tur === 'otomatik' ? 'Otomatik kabul' : 'Kabul';
+    return '<div class="kart sutun" style="gap:4px"><div class="satir arasi"><div class="sutun" style="gap:2px"><span style="font-weight:600">' + esc((t.kisi ? t.kisi + ' kişi · ' : '') + f.kapsam) + '</span>' +
+      '<span class="soluk kucuk">' + esc(tur + ' · ' + saatYaz(f.created_at)) + '</span></div><span class="oran-yazi">%' + Number(f.oran) + '</span></div>' +
+      '<p class="' + renk + '" style="font-size:14px;font-weight:600">' + esc(durum) + '</p></div>';
+  });
+  ozet.textContent = bugun.length
+    ? bugun.length + ' teklif verdin · ' + secilen + ' müşteri seçti · ' + gelen + ' masa geldi' + (gelenKisi ? ' (' + gelenKisi + ' kişi)' : '') + '.'
+    : 'Bugün henüz teklif vermedin.';
+  liste.innerHTML = satirlar.join('');
+}
 async function kodOnayla() {
   const giris = $('#kod-giris'), sonuc = $('#kod-sonuc');
   const kod = giris.value.trim();
@@ -673,6 +708,7 @@ async function kodOnayla() {
     const r = await q(db.rpc('kod_kullan', { p_kod: kod }));
     S.kodSonuc = 'Onaylandı: ' + r.kisi + ' kişi, ' + r.kapsam + ' için %' + r.oran + ' indirim uygula.';
     giris.value = '';
+    S.talepImza = null; // geçmiş listesi bir sonraki yenilemede güncellensin
     sonuc.className = 'kucuk yesil-yazi';
   } catch (e) {
     S.kodSonuc = e.message;
