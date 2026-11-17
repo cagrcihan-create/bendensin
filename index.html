@@ -385,6 +385,7 @@ EKRAN.teklifler = {
     const t = S.talep;
     haritaKur('harita', t.lat, t.lng, 15);
     S.teklifImza = null;
+    if (!S.kafeler) q(db.from('kafeler').select('id,ad,lat,lng').eq('onayli', true)).then((l) => { S.kafeler = l; S.teklifImza = null; }).catch(() => {});
     tekrarla(async (gecerli) => {
       const [talep, teklifler] = await Promise.all([
         q(db.from('talepler').select('*').eq('id', t.id).maybeSingle()),
@@ -408,7 +409,20 @@ function teklifCiz(talep) {
   if (imza === S.teklifImza) return;
   S.teklifImza = imza;
   if (!l.length) {
-    liste.innerHTML = '<div class="kart kesik"><p class="soluk">' + (bitti ? 'Bu sefer kimse teklif vermedi. Farklı bir oranla tekrar deneyebilirsin.' : 'Çevrendeki kafelere haber verildi. Teklifler geldikçe burada görünür.') + '</p></div>' +
+    // Menzilde kafe yoksa müşteri boşuna beklemesin: en yakın kafenin uzaklığını söyle.
+    let bekleme = 'Çevrendeki kafelere haber verildi. Bir kafe kabul edince teklifi burada görünür; seçince kodun çıkar.';
+    if (S.kafeler) {
+      const uzakliklar = S.kafeler.map((k) => mesafe(talep.lat, talep.lng, k.lat, k.lng));
+      const yakin = uzakliklar.filter((m) => m <= YARICAP).length;
+      if (!yakin) {
+        bekleme = uzakliklar.length
+          ? '1,5 km çevrende kayıtlı kafe yok, bu yüzden teklif gelmez. En yakın kafe ' + (Math.min.apply(null, uzakliklar) / 1000).toFixed(1).replace('.', ',') + ' km uzakta. Yaklaşınca tekrar dene.'
+          : 'Henüz kayıtlı kafe yok, bu yüzden teklif gelmez.';
+      } else {
+        bekleme = 'Çevrendeki ' + yakin + ' kafeye haber verildi. Bir kafe kabul edince teklifi burada görünür; seçince kodun çıkar.';
+      }
+    }
+    liste.innerHTML = '<div class="kart kesik"><p class="soluk">' + (bitti ? 'Bu sefer kimse teklif vermedi. Farklı bir oranla tekrar deneyebilirsin.' : bekleme) + '</p></div>' +
       (bitti ? '<button type="button" class="btn ana tam" data-a="talep-iptal">Yeni talep oluştur</button>' : '');
   } else {
     liste.innerHTML = l.map((x) => {
