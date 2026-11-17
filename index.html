@@ -326,6 +326,10 @@ EKRAN.talep = {
     return '<div style="position:relative"><div id="harita" class="harita"></div>' +
       '<div class="harita-ust"><button type="button" class="yuvarlak" data-a="git" data-v="hesap">Hesabım</button></div></div>' +
       '<div class="ic">' +
+      (S.kod && S.kod.durum === 'aktif' && new Date(S.kod.bitis).getTime() > Date.now()
+        ? '<div class="kart sutun"><div class="sutun" style="gap:2px"><span style="font-weight:600">Kullanılmayı bekleyen kodun var</span>' +
+          '<span class="soluk kucuk">' + esc((S.kod.kafe_ad || 'Kafe') + ' · %' + S.kod.oran + ' indirim') + '. Süresi dolmadan kasada söyle.</span></div>' +
+          '<button type="button" class="btn yesil dar" data-a="git" data-v="kod">Koda dön</button></div>' : '') +
       (S.talep && S.talep.durum === 'acik' && new Date(S.talep.bitis).getTime() > Date.now()
         ? '<div class="kart sutun"><div class="sutun" style="gap:2px"><span style="font-weight:600">Açık bir talebin var</span>' +
           '<span class="soluk kucuk">' + esc(S.talep.kisi + ' kişi · ' + S.talep.kapsam + ' · %' + S.talep.oran) + '. Yeni talep açarsan bu kapanır.</span></div>' +
@@ -479,7 +483,7 @@ EKRAN.menu = {
 
 /* ---------- müşteri: kod ---------- */
 EKRAN.kod = {
-  html() { return '<div class="ic ust-bosluk"><div id="kod-icerik" class="sutun" style="gap:18px;flex:1"><p class="soluk">Kod yükleniyor…</p></div></div>'; },
+  html() { return '<div class="ic ust-bosluk"><button type="button" class="btn dar" style="align-self:flex-start" data-a="git" data-v="talep">‹ Geri</button><div id="kod-icerik" class="sutun" style="gap:18px;flex:1"><p class="soluk">Kod yükleniyor…</p></div></div>'; },
   kur() {
     S.kodImza = null;
     tekrarla(async (gecerli) => {
