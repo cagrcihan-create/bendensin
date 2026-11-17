@@ -105,7 +105,7 @@ ol.adimlar{margin:0;padding-left:20px;font-size:14px;display:flex;flex-direction
 const SUPA_URL = 'https://oeapprlxcipkjbfoilcm.supabase.co';
 const SUPA_KEY = 'sb_publishable_ol7ux6gb9ajfh7ux-_G_Tg_p_LfsAC9';
 const KOD_UCRETI = 10;
-const SURUM = '2026-11-17-10'; // Her yüklemede artır: açık uygulamalar yeni sürümü buna bakarak fark eder.
+const SURUM = '2026-11-17-11'; // Her yüklemede artır: açık uygulamalar yeni sürümü buna bakarak fark eder.
 const YARICAP = Infinity; // Şimdilik mesafe sınırı yok. Geri açmak için metre yaz (örn. 1500) ve veritabanındaki private.menzil_m() ile aynı yap.
 const SINIR_VAR = isFinite(YARICAP);
 const KAPSAMLAR = ['Yemek', 'İçecek', 'Tatlı', 'Yemek + içecek', 'Tüm menü'];
@@ -545,9 +545,29 @@ EKRAN.hesap = {
       '<button type="button" class="btn dar" style="align-self:flex-start" data-a="geri-ana">‹ Geri</button>' +
       '<div class="sutun" style="gap:4px"><span class="ust-yazi">Hesabım</span><h1>' + esc(p.ad || 'Müşteri') + '</h1>' +
         '<p class="soluk">' + esc(S.session.user.email) + (p.telefon ? ' · ' + esc(p.telefon) : '') + '</p></div>' +
+      '<div class="sutun" style="gap:4px"><h3>Aldığın indirimler</h3><p id="gecmis-toplam" class="soluk kucuk"></p></div>' +
+      '<div id="musteri-gecmis" class="sutun"><p class="soluk">Yükleniyor…</p></div>' +
       (p.yonetici ? '<button type="button" class="btn yesil tam" data-a="git" data-v="yonetici">İşletme başvurularını yönet</button>' : '') +
       kurulumKarti() +
       '<button type="button" class="btn tam" style="margin-top:auto" data-a="cikis">Çıkış yap</button></div>';
+  },
+  kur() { this.yukle().catch((e) => { const el = $('#musteri-gecmis'); if (el) el.innerHTML = '<p class="hata-yazi kucuk">' + esc(e.message) + '</p>'; }); },
+  async yukle() {
+    const l = await q(db.from('kodlar')
+      .select('id,durum,kullanildi_at,puan,teklif:teklifler(kapsam,oran),kafe:kafeler(ad,adres)')
+      .eq('musteri', S.session.user.id).eq('durum', 'kullanildi')
+      .order('kullanildi_at', { ascending: false }).limit(100));
+    const el = $('#musteri-gecmis'), top = $('#gecmis-toplam');
+    if (S.view !== 'hesap' || !el) return;
+    top.textContent = l.length ? l.length + ' kez indirim aldın.' : '';
+    el.innerHTML = l.length
+      ? '<div class="kart sutun" style="gap:0;padding:4px 16px">' + l.map((k) => {
+          const f = k.teklif || {}, c = k.kafe || {};
+          return '<div class="satir arasi" style="padding:12px 0;border-bottom:1px solid var(--cizgi)"><div class="sutun" style="gap:2px;min-width:0"><span style="font-weight:600">' + esc(c.ad || 'Kafe') + '</span>' +
+            '<span class="soluk kucuk">' + esc(gunYaz(k.kullanildi_at) + ' · ' + saatYaz(k.kullanildi_at) + ' · ' + (f.kapsam || '') + (k.puan ? ' · puanın ' + k.puan + '/5' : '')) + '</span></div>' +
+            '<span class="oran-yazi" style="font-size:20px;flex-shrink:0">%' + Number(f.oran || 0) + '</span></div>';
+        }).join('') + '</div>'
+      : '<div class="kart kesik"><p class="soluk">Henüz indirim almadın. Kasada onaylanan kodların burada listelenir.</p></div>';
   }
 };
 
