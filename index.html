@@ -325,6 +325,10 @@ EKRAN.talep = {
     return '<div style="position:relative"><div id="harita" class="harita"></div>' +
       '<div class="harita-ust"><button type="button" class="yuvarlak" data-a="git" data-v="hesap">Hesabım</button></div></div>' +
       '<div class="ic">' +
+      (S.talep && S.talep.durum === 'acik' && new Date(S.talep.bitis).getTime() > Date.now()
+        ? '<div class="kart sutun"><div class="sutun" style="gap:2px"><span style="font-weight:600">Açık bir talebin var</span>' +
+          '<span class="soluk kucuk">' + esc(S.talep.kisi + ' kişi · ' + S.talep.kapsam + ' · %' + S.talep.oran) + '. Yeni talep açarsan bu kapanır.</span></div>' +
+          '<button type="button" class="btn yesil dar" data-a="git" data-v="teklifler">Tekliflere dön</button></div>' : '') +
       '<div class="sutun" style="gap:6px"><h1>Menüden ne kadar indirim istiyorsun?</h1><p id="konum-yazi" class="soluk">Konumun alınıyor…</p></div>' +
       '<div class="sutun"><span style="font-size:15px;font-weight:600">İndirim neye uygulansın?</span>' +
         '<div class="satir sar" style="gap:8px">' + chipler('kapsam', KAPSAMLAR, f.kapsam) + '</div>' +
@@ -367,7 +371,8 @@ function talepHaritaCiz() {
 EKRAN.teklifler = {
   html() {
     const t = S.talep;
-    return '<div style="position:relative"><div id="harita" class="harita kisa"></div></div>' +
+    return '<div style="position:relative"><div id="harita" class="harita kisa"></div>' +
+      '<div class="harita-sol"><button type="button" class="yuvarlak beyaz" data-a="talep-geri">‹ Geri</button></div></div>' +
       '<div class="ic">' +
       '<div class="sutun" style="gap:4px"><h2 id="teklif-baslik">Teklifler bekleniyor</h2>' +
         '<p class="soluk">' + esc(t.kisi + ' kişi · ' + t.kapsam + ' · %' + t.oran + ' istedin') + '</p>' +
@@ -803,6 +808,7 @@ const ISLEM = {
     S.talep = await q(db.from('talepler').select('*').eq('id', id).single());
     git('teklifler');
   },
+  'talep-geri': () => git('talep'),
   'talep-iptal': async () => { if (S.talep) await q(db.rpc('talep_iptal', { p_talep: S.talep.id })); S.talep = null; S.teklifler = []; git('talep'); },
   'menu-ac': (el) => { S.menuTeklif = S.teklifler.find((x) => x.id === el.dataset.v); if (S.menuTeklif) git('menu'); },
   'teklif-sec': async (el) => { await q(db.rpc('teklif_sec', { p_teklif: el.dataset.v })); S.talep = null; S.teklifler = []; git('kod'); },
